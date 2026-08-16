@@ -3,6 +3,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,8 +41,16 @@ func decodeJSON(r *http.Request, v any) error {
 		return ErrBadJSON
 	}
 	dec := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(v); err != nil {
+	var raw json.RawMessage
+	if err := dec.Decode(&raw); err != nil {
+		return fmt.Errorf("%w: %v", ErrBadJSON, err)
+	}
+	if len(raw) == 0 || raw[0] != '{' {
+		return ErrBadJSON
+	}
+	inner := json.NewDecoder(bytes.NewReader(raw))
+	inner.DisallowUnknownFields()
+	if err := inner.Decode(v); err != nil {
 		return fmt.Errorf("%w: %v", ErrBadJSON, err)
 	}
 	var extra any
